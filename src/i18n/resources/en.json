@@ -706,6 +706,20 @@
       "description": "Improve performance by enabling experimental scripts",
       "name": "Performance improvement [Beta]"
     },
+    "lyrics-pip": {
+      "name": "Floating Lyrics [Experimental]",
+      "description": "Experimental resizable, always-on-top lyrics window with playback controls. Works with Synced Lyrics or YouTube Music's own lyrics; behavior and appearance may vary by platform.",
+      "open": "Toggle floating lyrics",
+      "previous": "Previous track",
+      "next": "Next track",
+      "play": "Play",
+      "pause": "Pause",
+      "volume": "Volume",
+      "follow": "Follow lyrics",
+      "loading": "Loading lyrics…",
+      "empty": "Lyrics are not available for this track.",
+      "noTrack": "No track playing"
+    },
     "picture-in-picture": {
       "description": "Allows to switch the app to picture-in-picture mode",
       "menu": {

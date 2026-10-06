@@ -1,0 +1,320 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'nonce-floating-lyrics'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      :root {
+        color-scheme: dark;
+        font-size: var(--floating-root-font-size, 10px);
+        background: var(--ytmusic-general-background-a, #030303);
+        color: var(--ytmusic-text-primary, #fff);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        font: 14px var(--floating-font-family, Roboto, Arial, sans-serif);
+      }
+      header {
+        padding: 14px 18px 10px;
+        background: var(--ytmusic-player-bar-background, #212121);
+      }
+      #title {
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #artist {
+        color: var(--ytmusic-text-secondary, #aaa);
+        margin-top: 4px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #lyrics {
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding: 16px 24px;
+        scrollbar-width: thin;
+      }
+      .line {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        font-size: var(--floating-plain-font-size, 16px);
+        line-height: 1.45;
+        margin: 0 0 14px;
+      }
+      .line.active {
+        color: #fff;
+        font-weight: 700;
+      }
+      #plain {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        font-size: var(--floating-plain-font-size, 16px);
+        line-height: 1.5;
+      }
+      #status {
+        color: var(--ytmusic-text-secondary, #aaa);
+      }
+      footer {
+        flex-shrink: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 12px;
+        background: var(--ytmusic-player-bar-background, #212121);
+      }
+      button {
+        border: 0;
+        background: transparent;
+        color: var(--ytmusic-text-primary, #fff);
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      button:focus-visible,
+      input:focus-visible {
+        outline: 2px solid #ddd;
+        outline-offset: 2px;
+      }
+      #volume-label {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      #volume {
+        width: 80px;
+        height: 2px;
+        accent-color: var(--ytmusic-text-primary, #fff);
+      }
+      #follow {
+        color: var(--ytmusic-text-primary, #fff);
+      }
+      #follow[aria-pressed='false'] {
+        color: var(--ytmusic-text-secondary, #aaa);
+      }
+      svg {
+        width: 24px;
+        height: 24px;
+        fill: currentColor;
+        flex-shrink: 0;
+      }
+      #play {
+        width: 48px;
+        height: 48px;
+      }
+      #play svg {
+        width: 32px;
+        height: 32px;
+      }
+      #lines {
+        overflow-wrap: anywhere;
+      }
+    </style>
+    <style id="source-style"></style>
+  </head>
+  <body>
+    <header>
+      <div id="title"></div>
+      <div id="artist"></div>
+    </header>
+    <main id="lyrics" tabindex="0">
+      <div id="status" role="status"></div>
+      <div id="plain"></div>
+      <div id="lines"></div>
+    </main>
+    <footer>
+      <button id="previous">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6h2v12H6zm3 6 8.5 6V6z" />
+        </svg>
+      </button>
+      <button id="play">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path id="play-icon" d="m8 5 11 7-11 7z" />
+        </svg>
+      </button>
+      <button id="next">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z" />
+        </svg>
+      </button>
+      <label id="volume-label"
+        ><svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3v2a7 7 0 0 1 0 14v2a9 9 0 0 0 0-18z"
+          />
+        </svg>
+        <input id="volume" type="range" min="0" max="100" step="1"
+      /></label>
+      <button id="follow" aria-pressed="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M4 5h16v2H4zm0 6h11v2H4zm0 6h8v2H4zm14-6v5h-3l4 4 4-4h-3v-5z"
+          />
+        </svg>
+      </button>
+    </footer>
+    <script nonce="floating-lyrics">
+      const $ = (id) => document.getElementById(id);
+      const bridge = window.floatingLyrics;
+      let contentKey = '',
+        rows = [],
+        activeKey = '',
+        following = true,
+        manualUntil = 0,
+        themeKey = '';
+      $('previous').onclick = () => bridge.command('previous');
+      $('play').onclick = () => bridge.command('playPause');
+      $('next').onclick = () => bridge.command('next');
+      $('volume').oninput = (event) =>
+        bridge.command('volume', Number(event.target.value));
+      $('follow').onclick = () => {
+        following = !following;
+        manualUntil = 0;
+        activeKey = '';
+        $('follow').setAttribute('aria-pressed', String(following));
+      };
+      for (const event of ['wheel', 'touchstart', 'pointerdown', 'keydown'])
+        $('lyrics').addEventListener(event, () => {
+          manualUntil = Date.now() + 6000;
+        });
+      const dispose = bridge.onState(({ snapshot, labels }) => {
+        document.title = labels.name;
+        $('title').textContent = snapshot.title || labels.noTrack;
+        $('artist').textContent = snapshot.artist;
+        for (const id of ['previous', 'next', 'follow']) {
+          $(id).title = labels[id];
+          $(id).setAttribute('aria-label', labels[id]);
+        }
+        $('volume-label').title = labels.volume;
+        $('volume').setAttribute('aria-label', labels.volume);
+        if (document.activeElement !== $('volume'))
+          $('volume').value = String(snapshot.volume);
+        const playLabel = snapshot.paused ? labels.play : labels.pause;
+        $('play-icon').setAttribute(
+          'd',
+          snapshot.paused ? 'm8 5 11 7-11 7z' : 'M6 5h4v14H6zm8 0h4v14h-4z',
+        );
+        $('play').title = playLabel;
+        $('play').setAttribute('aria-label', playLabel);
+        const view = snapshot.lyrics;
+        const nextThemeKey = JSON.stringify(snapshot.theme || {});
+        if (themeKey !== nextThemeKey) {
+          for (const key of Object.keys(JSON.parse(themeKey || '{}')))
+            document.documentElement.style.removeProperty(key);
+          for (const [key, value] of Object.entries(snapshot.theme || {}))
+            document.documentElement.style.setProperty(key, value);
+          themeKey = nextThemeKey;
+        }
+        const key = JSON.stringify([snapshot.videoId, view]);
+        if (key !== contentKey) {
+          contentKey = key;
+          activeKey = '';
+          rows = [];
+          $('lines').replaceChildren();
+          $('plain').textContent = '';
+          $('plain').className = view?.stylesheet
+            ? 'text-lyrics description ytmusic-description-shelf-renderer'
+            : 'description ytmusic-description-shelf-renderer';
+          $('source-style').textContent = view?.stylesheet || '';
+          $('lyrics').scrollTop = 0;
+          $('status').textContent =
+            !view || view.state === 'loading'
+              ? labels.loading
+              : view.state === 'empty'
+                ? labels.empty
+                : '';
+          if (view && view.state === 'ready') {
+            if (view.lines.length) {
+              rows = view.lines.map((line) => {
+                const element = document.createElement('div');
+                element.className = 'line synced-line upcoming';
+                const description = document.createElement('div');
+                description.className =
+                  'description ytmusic-description-shelf-renderer';
+                description.dir = 'auto';
+                const text = document.createElement('div');
+                text.className = 'text-lyrics';
+                if (line.endMs !== undefined)
+                  text.style.setProperty(
+                    '--lyrics-duration',
+                    (line.endMs - line.startMs) / 1000 + 's',
+                  );
+                const words = document.createElement('span');
+                (line.text.trim() || '♪').split(' ').forEach((word, index) => {
+                  const span = document.createElement('span');
+                  span.textContent = word + ' ';
+                  span.style.transitionDelay = index * 0.05 + 's';
+                  span.style.animationDelay = index * 0.05 + 's';
+                  words.append(span);
+                });
+                text.append(words);
+                description.append(text);
+                element.append(description);
+                $('lines').append(element);
+                return { line, element };
+              });
+            } else $('plain').textContent = view.text;
+          }
+        }
+        let first = null;
+        const active = [];
+        for (let index = 0; index < rows.length; index++) {
+          const { line, element } = rows[index];
+          const end =
+            line.endMs === undefined
+              ? rows[index + 1]?.line.startMs
+              : line.endMs;
+          const current =
+            snapshot.timeMs >= line.startMs &&
+            (end === undefined || snapshot.timeMs < end);
+          element.classList.toggle('active', current);
+          element.classList.toggle('current', current);
+          element.classList.toggle(
+            'previous',
+            end !== undefined && snapshot.timeMs >= end,
+          );
+          element.classList.toggle('upcoming', snapshot.timeMs < line.startMs);
+          if (current) {
+            active.push(index);
+            first ||= element;
+          }
+        }
+        const nextActiveKey = active.join(',');
+        if (
+          following &&
+          Date.now() >= manualUntil &&
+          first &&
+          nextActiveKey !== activeKey
+        ) {
+          first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          activeKey = nextActiveKey;
+        }
+      });
+      window.addEventListener('pagehide', dispose, { once: true });
+    </script>
+  </body>
+</html>

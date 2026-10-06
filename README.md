@@ -59,6 +59,7 @@ Development changes may not yet be available in published releases.
 
 - Native desktop integration and the existing Pear Desktop plugin system.
 - Synced lyrics improvements: multi-source candidate matching, bounded searches, caching, and stable source selection with the original picker controls.
+- Experimental Floating Lyrics: an optional resizable, always-on-top window with playback controls, using Synced Lyrics or native YouTube Music lyrics. Disabled by default; behavior and appearance may vary by platform.
 - Enhanced Do Not Track profiles: Lite, Balanced, Strict, and optional custom filter lists.
 
 The application retains upstream branding in some menus and package names.

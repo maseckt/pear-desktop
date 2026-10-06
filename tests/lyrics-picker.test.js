@@ -405,19 +405,26 @@ test('original picker controls with retained multi-candidate logic and progressi
     const headerContainer = page.locator('.lyrics-picker-header');
     await expect(headerContainer).toHaveAttribute('aria-hidden', 'false');
     const headerBox = await header.boundingBox();
+    // Exercise the component's pointer boundary directly. Desktop pointer input
+    // can race CDP mouse moves when a window manager resizes native windows or
+    // another desktop input arrives; the hide/reveal and geometry assertions stay.
+    const moveInLayout = (x, y) =>
+      page
+        .locator('.synced-lyrics-layout')
+        .dispatchEvent('pointermove', { clientX: x, clientY: y });
     const scroller = page.locator('.synced-lyrics-vlist');
     const scrollerBox = await scroller.boundingBox();
     for (const offset of [1500, 4000, 6000]) {
       await scroller.evaluate((element, top) => {
         element.scrollTop = top;
       }, offset);
-      await page.mouse.move(180, 350);
+      await moveInLayout(180, 350);
       await expect(headerContainer).toHaveAttribute('aria-hidden', 'true');
       expect(Math.round((await headerContainer.boundingBox()).y)).toBe(
         Math.round(headerBox.y),
       );
       // Hover reveals the whole panel at precisely its original position.
-      await page.mouse.move(180, headerBox.y + 10);
+      await moveInLayout(180, headerBox.y + 10);
       await expect(headerContainer).toHaveAttribute('aria-hidden', 'false');
       await expect
         .poll(async () => Math.round((await header.boundingBox()).y))
@@ -444,7 +451,7 @@ test('original picker controls with retained multi-candidate logic and progressi
       document.getElementById('fixture').style.height = '320px';
     });
     await expect(header).toBeVisible();
-    await page.mouse.move(180, 10);
+    await moveInLayout(180, 10);
     await expect(headerContainer).toHaveAttribute('aria-hidden', 'false');
     await expect
       .poll(async () => Math.round((await header.boundingBox()).y))
@@ -452,7 +459,7 @@ test('original picker controls with retained multi-candidate logic and progressi
     await scroller.evaluate((element) => {
       element.scrollTop = 0;
     });
-    await page.mouse.move(180, 250);
+    await moveInLayout(180, 250);
     await expect(headerContainer).toHaveAttribute('aria-hidden', 'false');
     await expect(page.locator('.lyrics-picker-dot-available')).toHaveCSS(
       'background-color',

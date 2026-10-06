@@ -8,7 +8,7 @@ import {
   type PreloadViteConfig,
   type RendererViteConfig,
 } from 'electron-vite';
-import { withFilter } from 'vite';
+import { build, withFilter } from 'vite';
 import Inspect from 'vite-plugin-inspect';
 import viteResolve from 'vite-plugin-resolve';
 import solidPlugin from 'vite-plugin-solid';
@@ -27,7 +27,11 @@ const resolveAlias = {
 export default defineConfig(({ mode }) => {
   const isDev = mode === 'development';
 
-  const mainAndPreloadExcludes = ['electron', 'custom-electron-prompt', ...builtinModules];
+  const mainAndPreloadExcludes = [
+    'electron',
+    'custom-electron-prompt',
+    ...builtinModules,
+  ];
   const mainConfig: MainViteConfig = {
     plugins: [
       pluginLoader('backend'),
@@ -70,6 +74,28 @@ export default defineConfig(({ mode }) => {
 
   const preloadConfig: PreloadViteConfig = {
     plugins: [
+      {
+        name: 'standalone-floating-lyrics-preload',
+        async closeBundle() {
+          // A sandboxed window cannot require sibling chunks. Build separately
+          // from the main preload so entry side effects never get shared.
+          await build({
+            configFile: false,
+            logLevel: 'error',
+            build: {
+              outDir: 'dist/preload',
+              emptyOutDir: false,
+              lib: {
+                entry: 'src/plugins/lyrics-pip/window-preload.ts',
+                formats: ['cjs'],
+                fileName: () => 'lyrics-pip.cjs',
+              },
+              rolldownOptions: { external: ['electron'] },
+              minify: !isDev,
+            },
+          });
+        },
+      },
       pluginLoader('preload'),
       viteResolve({
         'virtual:i18n': i18nImporter(),

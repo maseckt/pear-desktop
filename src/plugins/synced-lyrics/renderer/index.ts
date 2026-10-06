@@ -1,10 +1,23 @@
+import { createEffect, onCleanup } from 'solid-js';
+
+import { publishLyricsView } from '@/providers/lyrics-view';
 import { getSongInfo } from '@/providers/song-info-front';
 import { createRenderer } from '@/utils';
 
 import { LyricsLifecycle, waitForLyricsElement } from './lifecycle';
-import { disposeReactiveRoot, startReactiveRoot } from './reactive-root';
+import {
+  disposeReactiveRoot,
+  registerReactiveRoot,
+  startReactiveRoot,
+} from './reactive-root';
 import { config, setConfig, setCurrentTime } from './renderer';
-import { cancelSearch, disposeSearch, fetchLyrics } from './store';
+import {
+  cancelSearch,
+  currentLyrics,
+  disposeSearch,
+  fetchLyrics,
+  lyricsStore,
+} from './store';
 import { selectors, startLyricsTabs, stopLyricsTabs, tabStates } from './utils';
 
 import {
@@ -12,6 +25,7 @@ import {
   normalizePreferredProvider,
 } from '../preferences';
 import { configureElectronTransport } from '../search/electron-transport';
+import stylesheet from '../style.css?inline';
 
 import type { SyncedLyricsPluginConfig } from '../types';
 import type { SongInfo } from '@/providers/song-info';
@@ -23,6 +37,35 @@ let playerCleanup: (() => void) | undefined;
 let headerLifetime: LyricsLifecycle | undefined;
 let headerGeneration = 0;
 let latestInfo: SongInfo | undefined;
+
+registerReactiveRoot(() => {
+  onCleanup(() => publishLyricsView(null));
+  createEffect(() => {
+    const current = currentLyrics();
+    const videoId = lyricsStore.track?.videoId;
+    if (!config()?.enabled || !videoId) {
+      publishLyricsView(null);
+      return;
+    }
+    publishLyricsView({
+      videoId,
+      state:
+        current.state === 'fetching'
+          ? 'loading'
+          : current.data
+            ? 'ready'
+            : 'empty',
+      text: current.data?.lyrics ?? '',
+      stylesheet,
+      lines:
+        current.data?.lines?.map(({ text, startMs, endMs }) => ({
+          text,
+          startMs,
+          endMs,
+        })) ?? [],
+    });
+  });
+});
 
 export const renderer = createRenderer<
   {

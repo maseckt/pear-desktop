@@ -16,6 +16,10 @@ overrides:
   '@xmldom/xmldom@<0.8.15': 0.8.15
   uuid@13.0.0: 13.0.1
   undici@6.24.1: 6.28.1
+  '@indic-transliteration/sanscript>toml': 4.3.0
+  seroval@1.5.4: 1.6.8
+  oxfmt>tinypool: 2.1.2
+  serve>compression: 1.8.2
 patchedDependencies:
   vudio@2.1.1: patches/vudio@2.1.1.patch
   '@malept/flatpak-bundler@0.4.0': patches/@malept__flatpak-bundler@0.4.0.patch
