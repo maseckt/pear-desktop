@@ -61,6 +61,8 @@ Development changes may not yet be available in published releases.
 - Synced lyrics improvements: multi-source candidate matching, bounded searches, caching, and stable source selection with the original picker controls.
 - Experimental Floating Lyrics: an optional resizable, always-on-top window with playback controls, using Synced Lyrics or native YouTube Music lyrics. Disabled by default; behavior and appearance may vary by platform.
 - Enhanced Do Not Track profiles: Lite, Balanced, Strict, and optional custom filter lists.
+- Local dev additions: export the selected original lyrics as `.lrc`, configurable music/podcast seek shortcuts, and a serialized download queue with progress, cancellation, and retry. Cancellation during conversion waits for conversion to finish and prevents saving; buffered downloads are limited to 512 MiB.
+- Optional Player Actions: mark A/B at the current playback position, repeat/save the section for that track, adjust slowed playback and reverb. Disabled by default. Audio Compressor also offers optional Auto Track Gain with a configurable cap; disabled by default.
 
 The application retains upstream branding in some menus and package names.
 

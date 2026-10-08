@@ -18,6 +18,12 @@ export const menu = async (
 
   return [
     {
+      label: t('plugins.synced-lyrics.menu.export-label'),
+      type: 'checkbox',
+      checked: config.showExport,
+      click: (item) => ctx.setConfig({ showExport: item.checked }),
+    },
+    {
       label: t('plugins.synced-lyrics.menu.preferred-provider.label'),
       toolTip: t('plugins.synced-lyrics.menu.preferred-provider.tooltip'),
       type: 'submenu',

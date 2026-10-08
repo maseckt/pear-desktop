@@ -28,6 +28,7 @@ export default createPlugin<
     defaultTextString: '♪',
     lineEffect: 'fancy',
     romanization: true,
+    showExport: true,
   },
 
   menu,

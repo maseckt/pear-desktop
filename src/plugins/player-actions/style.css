@@ -1,0 +1,20 @@
+.pearum-player-actions {
+  position: fixed;
+  bottom: 100px;
+  left: 20px;
+  z-index: 2100;
+  max-width: min(350px, 90vw);
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--ytmusic-general-background-c, #181818);
+  color: var(--ytmusic-primary-text-color, white);
+  box-shadow: 0 4px 20px #0008;
+}
+.pearum-player-actions output,
+.pearum-player-actions label {
+  display: block;
+  margin: 6px 0;
+}
+.pearum-player-actions input {
+  width: 100%;
+}

@@ -215,6 +215,15 @@
     }
   },
   "plugins": {
+    "player-actions": {
+      "name": "Player Actions",
+      "description": "A–B repeat saved per track, slowed playback and optional reverb",
+      "repeat": "Repeat A–B",
+      "save": "Save",
+      "clear": "Clear",
+      "slow": "Playback rate",
+      "reverb": "Reverb"
+    },
     "ad-speedup": {
       "description": "If an ad play it mutes the audio and sets playback speed to 16x",
       "name": "Ad Speedup"
@@ -348,6 +357,10 @@
       }
     },
     "audio-compressor": {
+      "menu": {
+        "auto-track-gain": "Boost quiet tracks (Auto Track Gain)",
+        "maximum-gain": "Maximum gain"
+      },
       "description": "Apply compression to audio (lowers the volume of the loudest parts of the signal and raises the volume of the softest parts)",
       "name": "Audio Compressor"
     },
@@ -513,6 +526,16 @@
       "name": "Do Not Track"
     },
     "downloader": {
+      "tasks": {
+        "title": "Downloads",
+        "queued": "Queued",
+        "running": "Running",
+        "done": "Done",
+        "cancelled": "Cancelled",
+        "error": "Failed",
+        "retry": "Retry",
+        "cancel": "Cancel (conversion finishes before stopping)"
+      },
       "backend": {
         "dialog": {
           "error": {
@@ -827,6 +850,12 @@
       }
     },
     "shortcuts": {
+      "seek": {
+        "seekForwardSeconds": "Seek forward: {{seconds}} s",
+        "seekBackwardSeconds": "Seek backward: {{seconds}} s",
+        "podcastSeekForwardSeconds": "Podcast seek forward: {{seconds}} s",
+        "podcastSeekBackwardSeconds": "Podcast seek backward: {{seconds}} s"
+      },
       "description": "Allows setting global hotkeys for playback (play/pause/next/previous) and turning off media OSD by overriding media keys, turning on Ctrl/CMD + F to search, turning on Linux MPRIS support for media keys, and custom hotkeys for advanced users",
       "menu": {
         "override-media-keys": "Override Media Keys",
@@ -838,7 +867,9 @@
           "keybind-options": {
             "next": "Next",
             "play-pause": "Play / Pause",
-            "previous": "Previous"
+            "previous": "Previous",
+            "seek-forward": "Seek forward",
+            "seek-backward": "Seek backward"
           },
           "label": "Choose Global Keybinds for Songs Control:",
           "title": "Global Keybinds"
@@ -864,6 +895,8 @@
         "not-found": "⚠️ No lyrics found for this song."
       },
       "menu": {
+        "export-label": "Export lyrics (.lrc)",
+        "export-error": "Could not export lyrics",
         "preferred-provider": {
           "label": "Preferred Provider",
           "tooltip": "Choose the default provider to use",

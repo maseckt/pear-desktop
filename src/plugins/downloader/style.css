@@ -19,3 +19,27 @@
   height: var(--iron-icon-height, 24px);
   animation: var(--iron-icon_-_animation);
 }
+.pearum-download-tasks {
+  position: fixed;
+  right: 20px;
+  bottom: 100px;
+  z-index: 2200;
+  width: min(400px, 90vw);
+  max-height: 45vh;
+  overflow: auto;
+  background: var(--ytmusic-general-background-c, #181818);
+  color: var(--ytmusic-primary-text-color, white);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 4px 20px #0008;
+}
+.pearum-download-tasks:empty {
+  display: none;
+}
+.pearum-download-task {
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+.pearum-download-task progress {
+  width: 100%;
+}

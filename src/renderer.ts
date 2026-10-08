@@ -4,6 +4,9 @@ import 'mdui/mdui.css';
 import 'mdui';
 
 import { loadI18n, setLanguage, t as i18t } from '@/i18n';
+import { rememberAudioGraph } from '@/plugins/utils/renderer/audio-graph';
+import { LoggerPrefix } from '@/utils';
+import { invokePlayerApiReady } from '@/utils/player-api-ready';
 import {
   defaultTrustedTypePolicy,
   registerWindowDefaultTrustedTypePolicy,
@@ -23,7 +26,7 @@ import { setupSongInfo } from './providers/song-info-front';
 import type { MusicPlayer } from '@/types/music-player';
 import type { MusicPlayerAppElement } from '@/types/music-player-app-element';
 import type { QueueResponse } from '@/types/music-player-desktop-internal';
-import type { PluginConfig } from '@/types/plugins';
+import type { PluginConfig, PluginDef } from '@/types/plugins';
 import type { QueueElement } from '@/types/queue';
 import type { SearchBoxElement } from '@/types/search-box-element';
 
@@ -45,6 +48,28 @@ async function listenForApiLoad() {
       return;
     }
   }
+}
+
+async function callOnPlayerApiReady(
+  id: string,
+  renderer: PluginDef<unknown, unknown, unknown>['renderer'],
+  playerApi: MusicPlayer,
+) {
+  await invokePlayerApiReady(
+    renderer,
+    playerApi,
+    createContext(id),
+    (error) => {
+      console.error(
+        LoggerPrefix,
+        i18t('common.console.plugins.execute-failed', {
+          pluginName: id,
+          contextName: 'onPlayerApiReady',
+        }),
+        error,
+      );
+    },
+  );
 }
 
 async function onApiLoaded() {
@@ -313,15 +338,10 @@ async function onApiLoaded() {
   const audioContext = new AudioContext();
   const audioSource = audioContext.createMediaElementSource(video);
   audioSource.connect(audioContext.destination);
+  rememberAudioGraph({ audioContext, audioSource });
 
   for (const [id, plugin] of Object.entries(getAllLoadedRendererPlugins())) {
-    if (typeof plugin.renderer !== 'function') {
-      await plugin.renderer?.onPlayerApiReady?.call(
-        plugin.renderer,
-        api!,
-        createContext(id),
-      );
-    }
+    await callOnPlayerApiReady(id, plugin.renderer, api!);
   }
 
   if (firstDataLoaded) {
@@ -458,13 +478,7 @@ const main = async () => {
     await forceLoadRendererPlugin(id);
     if (api) {
       const plugin = getLoadedRendererPlugin(id);
-      if (plugin && typeof plugin.renderer !== 'function') {
-        await plugin.renderer?.onPlayerApiReady?.call(
-          plugin.renderer,
-          api,
-          createContext(id),
-        );
-      }
+      if (plugin) await callOnPlayerApiReady(id, plugin.renderer, api);
     }
   });
 

@@ -1,4 +1,4 @@
-import { createSignal } from 'solid-js';
+import { createSignal, For, Show } from 'solid-js';
 import { render } from 'solid-js/web';
 
 import { defaultConfig } from '@/config/defaults';
@@ -13,6 +13,7 @@ import { getSongInfo } from '@/providers/song-info-front';
 import { DownloadButton } from './templates/download';
 
 import type { DownloaderPluginConfig } from './index';
+import type { DownloadTask } from './tasks';
 import type { RendererContext } from '@/types/contexts';
 
 let download: () => void;
@@ -20,6 +21,10 @@ let download: () => void;
 const [downloadButtonText, setDownloadButtonText] = createSignal<string>('');
 
 let buttonContainer: HTMLDivElement | null = null;
+let panelContainer: HTMLDivElement | null = null;
+let disposePanel: (() => void) | undefined;
+let unsubscribeTasks: (() => void) | undefined;
+const [tasks, setTasks] = createSignal<DownloadTask[]>([]);
 
 const menuObserver = new MutationObserver(() => {
   const menu = getSongMenu();
@@ -39,6 +44,72 @@ const menuObserver = new MutationObserver(() => {
 export const onRendererLoad = ({
   ipc,
 }: RendererContext<DownloaderPluginConfig>) => {
+  unsubscribeTasks?.();
+  unsubscribeTasks = ipc.on('downloader:tasks', (value: DownloadTask[]) => {
+    if (Array.isArray(value) && value.length <= 100) setTasks(value);
+  });
+  if (!panelContainer) {
+    panelContainer = document.createElement('div');
+    panelContainer.className = 'pearum-download-tasks';
+    document.body.append(panelContainer);
+    disposePanel = render(
+      () => (
+        <Show when={tasks().length}>
+          <details open>
+            <summary>{t('plugins.downloader.tasks.title')}</summary>
+            <For each={tasks()}>
+              {(task) => (
+                <div class="pearum-download-task">
+                  <span>
+                    {task.title} —{' '}
+                    {t(`plugins.downloader.tasks.${task.status}`)}
+                  </span>
+                  <Show when={task.error}>
+                    <span>{task.error}</span>
+                  </Show>
+                  <progress
+                    max="1"
+                    value={task.progress >= 0 ? task.progress : undefined}
+                  />
+                  <Show
+                    fallback={
+                      <>
+                        <Show when={task.status === 'error'}>
+                          <button
+                            onClick={() =>
+                              ipc.send('downloader:retry', task.id)
+                            }
+                          >
+                            {t('plugins.downloader.tasks.retry')}
+                          </button>
+                        </Show>
+                        <button
+                          onClick={() =>
+                            ipc.send('downloader:dismiss', task.id)
+                          }
+                        >
+                          ×
+                        </button>
+                      </>
+                    }
+                    when={task.status === 'running' || task.status === 'queued'}
+                  >
+                    <button
+                      onClick={() => ipc.send('downloader:cancel', task.id)}
+                    >
+                      {t('plugins.downloader.tasks.cancel')}
+                    </button>
+                  </Show>
+                </div>
+              )}
+            </For>
+          </details>
+        </Show>
+      ),
+      panelContainer,
+    );
+  }
+  ipc.send('downloader:tasks-ready');
   download = () => {
     const songMenu = getSongMenu();
 
@@ -110,3 +181,16 @@ export const onPlayerApiReady = () => {
     subtree: true,
   });
 };
+
+export function onRendererStop() {
+  unsubscribeTasks?.();
+  unsubscribeTasks = undefined;
+  menuObserver.disconnect();
+  disposePanel?.();
+  disposePanel = undefined;
+  panelContainer?.remove();
+  panelContainer = null;
+  buttonContainer?.remove();
+  buttonContainer = null;
+  setTasks([]);
+}

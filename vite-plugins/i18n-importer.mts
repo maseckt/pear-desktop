@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { basename, resolve, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -24,21 +25,38 @@ export const i18nImporter = () => {
   const src = globalProject.createSourceFile(
     'vm:i18n',
     (writer) => {
-      writer.writeLine('export const languageResources = async () => {');
-      writer.writeLine('  const entries = await Promise.all([');
+      const labels = Object.fromEntries(
+        plugins.map(({ name, path }) => {
+          const json = JSON.parse(readFileSync(path, 'utf8')) as {
+            language?: { name?: string; 'local-name'?: string };
+          };
+          return [
+            name,
+            {
+              name: json.language?.name ?? 'Unknown',
+              localName: json.language?.['local-name'] ?? 'Unknown',
+            },
+          ];
+        }),
+      );
+      writer.writeLine(
+        `export const languageLabels = ${JSON.stringify(labels)};`,
+      );
+      writer.writeLine(
+        'export const availableLanguages = Object.keys(languageLabels);',
+      );
+      writer.writeLine('const loaders = new Map([');
       for (const { name, path } of plugins) {
-        const absolutePath = resolve(srcPath, '..', path).replace(
-          /\\/g,
-          '/',
-        );
+        const absolutePath = resolve(srcPath, '..', path).replace(/\\/g, '/');
 
         writer.writeLine(
-          `    import('${absolutePath}').then((mod) => ({ "${name}": { translation: mod.default } })),`,
+          `  [${JSON.stringify(name)}, () => import(${JSON.stringify(absolutePath)}).then((mod) => mod.default)],`,
         );
       }
-      writer.writeLine('  ]);');
-      writer.writeLine('  return Object.assign({}, ...entries);');
-      writer.writeLine('};');
+      writer.writeLine(']);');
+      writer.writeLine(
+        'export const loadLanguageResource = async (name) => loaders.get(name)?.();',
+      );
       writer.blankLine();
     },
     { overwrite: true },

@@ -15,5 +15,7 @@ declare module 'virtual:plugins' {
 declare module 'virtual:i18n' {
   import type { LanguageResources } from '@/i18n/resources/@types';
 
-  export const languageResources: () => Promise<LanguageResources>;
+  export const availableLanguages: string[];
+  export const languageLabels: Record<string, { name: string; localName: string }>;
+  export const loadLanguageResource: (name: string) => Promise<LanguageResources[string]['translation'] | undefined>;
 }

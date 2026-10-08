@@ -3,6 +3,8 @@ import prompt, { type KeybindOptions } from 'custom-electron-prompt';
 import { t } from '@/i18n';
 import promptOptions from '@/providers/prompt-options';
 
+import { seekSeconds } from './seek';
+
 import type { ShortcutsPluginConfig } from './index';
 import type { MenuTemplate } from '@/menu';
 import type { MenuContext } from '@/types/contexts';
@@ -50,27 +52,66 @@ export const onMenu = async ({
             'next',
             config.global?.next,
           ),
+          kb(
+            t('plugins.shortcuts.prompt.keybind.keybind-options.seek-forward'),
+            'seekForward',
+            config.global?.seekForward,
+          ),
+          kb(
+            t('plugins.shortcuts.prompt.keybind.keybind-options.seek-backward'),
+            'seekBackward',
+            config.global?.seekBackward,
+          ),
         ],
-        height: 270,
+        height: 370,
         ...promptOptions(),
       },
       win,
     );
 
     if (output) {
-      const newConfig = { ...config };
+      const global = { ...config.global };
 
       for (const { value, accelerator } of output) {
-        newConfig.global[value as keyof ShortcutsPluginConfig['global']] =
-          accelerator;
+        if (
+          Object.hasOwn(global, value) &&
+          typeof accelerator === 'string' &&
+          accelerator.length <= 100
+        ) {
+          global[value as keyof typeof global] = accelerator;
+        }
       }
 
-      setConfig(config);
+      await setConfig({ global });
     }
     // Else -> pressed cancel
   }
 
   return [
+    ...(
+      [
+        'seekForwardSeconds',
+        'seekBackwardSeconds',
+        'podcastSeekForwardSeconds',
+        'podcastSeekBackwardSeconds',
+      ] as const
+    ).map((key) => ({
+      label: t(`plugins.shortcuts.seek.${key}`, { seconds: config[key] }),
+      async click() {
+        const value = await prompt(
+          {
+            title: t(`plugins.shortcuts.seek.${key}`, { seconds: config[key] }),
+            value: config[key],
+            type: 'counter',
+            counterOptions: { minimum: 1, maximum: 600 },
+            ...promptOptions(),
+          },
+          window,
+        );
+        if (value === null || value === undefined) return;
+        await setConfig({ [key]: seekSeconds(Number(value), config[key]) });
+      },
+    })),
     {
       label: t('plugins.shortcuts.menu.set-keybinds'),
       click: () => promptKeybind(config, window),

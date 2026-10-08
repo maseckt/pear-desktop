@@ -38,6 +38,7 @@ import {
   setBadge,
 } from './utils';
 
+import { DownloadTasks } from '../tasks';
 import { DefaultPresetList, type Preset, VideoFormatList } from '../types';
 
 import type { DownloaderPluginConfig } from '../index';
@@ -78,6 +79,16 @@ Platform.shim.eval = (
 let yt: Innertube;
 let win: BrowserWindow;
 let playingUrl: string;
+const downloadTasks = new DownloadTasks();
+let sendTaskState: (() => void) | undefined;
+let broadcastTimer: ReturnType<typeof setTimeout> | undefined;
+downloadTasks.subscribe(() => {
+  if (broadcastTimer) return;
+  broadcastTimer = setTimeout(() => {
+    broadcastTimer = undefined;
+    sendTaskState?.();
+  }, 120);
+});
 
 const isPremium = async () => {
   // If signed out, it is understood as non-premium
@@ -225,6 +236,14 @@ export const onMainLoad = async ({
 }: BackendContext<DownloaderPluginConfig>) => {
   win = _win;
   config = await getConfig();
+  sendTaskState = () => {
+    if (!win.isDestroyed())
+      ipc.send('downloader:tasks', downloadTasks.snapshot());
+  };
+  ipc.on('downloader:tasks-ready', sendTaskState);
+  ipc.on('downloader:cancel', (id: unknown) => downloadTasks.cancel(id));
+  ipc.on('downloader:retry', (id: unknown) => downloadTasks.retry(id));
+  ipc.on('downloader:dismiss', (id: unknown) => downloadTasks.dismiss(id));
 
   ipc.handle('download-song', (url: string) => downloadSong(url));
   ipc.on('peard:video-src-changed', (data: GetPlayerResponse) => {
@@ -247,20 +266,15 @@ export async function downloadSong(
   trackId?: string,
   increasePlaylistProgress: (value: number) => void = () => {},
 ) {
-  let resolvedName;
-  try {
-    await ensureInitialized();
-    await downloadSongUnsafe(
-      false,
-      url,
-      (name: string) => (resolvedName = name),
-      playlistFolder,
-      trackId,
-      increasePlaylistProgress,
-    );
-  } catch (error: unknown) {
-    sendError(error as Error, resolvedName || url);
-  }
+  const id =
+    typeof url === 'string' && url.length <= 2048 ? getVideoId(url) : null;
+  if (!id || !/^[\w-]{11}$/.test(id)) throw new Error('Invalid download URL');
+  return downloadSongFromId(
+    id,
+    playlistFolder,
+    trackId,
+    increasePlaylistProgress,
+  );
 }
 
 export async function downloadSongFromId(
@@ -269,20 +283,27 @@ export async function downloadSongFromId(
   trackId?: string,
   increasePlaylistProgress: (value: number) => void = () => {},
 ) {
-  let resolvedName;
-  try {
-    await ensureInitialized();
-    await downloadSongUnsafe(
-      true,
-      id,
-      (name: string) => (resolvedName = name),
-      playlistFolder,
-      trackId,
-      increasePlaylistProgress,
-    );
-  } catch (error: unknown) {
-    sendError(error as Error, resolvedName || id);
-  }
+  if (typeof id !== 'string' || !/^[\w-]{11}$/.test(id))
+    throw new Error('Invalid video ID');
+  const folder =
+    playlistFolder || config.downloadFolder || app.getPath('downloads');
+  return downloadTasks.enqueue(
+    `${id}:${folder}:${trackId ?? ''}`,
+    id,
+    async (taskId) => {
+      await ensureInitialized();
+      downloadTasks.check(taskId);
+      await downloadSongUnsafe(
+        true,
+        id,
+        (name) => downloadTasks.update(taskId, name),
+        folder,
+        trackId,
+        increasePlaylistProgress,
+        taskId,
+      );
+    },
+  );
 }
 
 function downloadSongOnFinishSetup({
@@ -347,6 +368,7 @@ async function downloadSongUnsafe(
   playlistFolder?: string,
   trackId?: string,
   increasePlaylistProgress: (value: number) => void = () => {},
+  taskId?: string,
 ) {
   const sendFeedback = (message: unknown, progress?: number) => {
     if (!playlistFolder) {
@@ -479,7 +501,13 @@ async function downloadSongUnsafe(
     presetSetting?.ffmpegArgs ?? [],
     format.content_length ?? 0,
     sendFeedback,
-    increasePlaylistProgress,
+    (value) => {
+      if (taskId) downloadTasks.update(taskId, name, value);
+      increasePlaylistProgress(value);
+    },
+    () => {
+      if (taskId) downloadTasks.check(taskId);
+    },
   );
 
   if (fileBuffer && targetFileExtension === 'mp3') {
@@ -491,7 +519,10 @@ async function downloadSongUnsafe(
   }
 
   if (fileBuffer) {
+    if (taskId) downloadTasks.check(taskId);
     writeFileSync(filePath, fileBuffer);
+  } else {
+    throw new Error('Download conversion failed');
   }
 
   sendFeedback(null, -1);
@@ -507,11 +538,15 @@ async function downloadChunks(
   contentLength: number,
   sendFeedback: (str: string, value?: number) => void,
   increasePlaylistProgress: (value: number) => void = () => {},
+  checkCancellation: () => void = () => {},
 ) {
   const chunks = [];
   let downloaded = 0;
   for await (const chunk of stream) {
+    checkCancellation();
     downloaded += chunk.length;
+    if (downloaded > 512 * 1024 * 1024)
+      throw new Error('Download exceeds 512 MiB memory limit');
     chunks.push(chunk);
     const ratio = downloaded / contentLength;
     const progress = Math.floor(ratio * 100);
@@ -536,18 +571,19 @@ async function iterableStreamToProcessedUint8Array(
   contentLength: number,
   sendFeedback: (str: string, value?: number) => void,
   increasePlaylistProgress: (value: number) => void = () => {},
+  checkCancellation: () => void = () => {},
 ): Promise<Uint8Array | null> {
   sendFeedback(t('plugins.downloader.backend.feedback.loading'), 2); // Indefinite progress bar after download
 
   const safeVideoName = randomBytes(32).toString('hex');
 
   return await ffmpegMutex.runExclusive(async () => {
+    const ffmpegInstance = await ffmpeg.get();
+    if (!ffmpegInstance.isLoaded()) await ffmpegInstance.load();
+    if (!/^[a-z0-9]{1,10}$/i.test(extension))
+      throw new Error('Invalid file extension');
+    const safeVideoNameWithExtension = `${safeVideoName}.${extension}`;
     try {
-      const ffmpegInstance = await ffmpeg.get();
-      if (!ffmpegInstance.isLoaded()) {
-        await ffmpegInstance.load();
-      }
-
       sendFeedback(t('plugins.downloader.backend.feedback.preparing-file'));
       ffmpegInstance.FS(
         'writeFile',
@@ -558,6 +594,7 @@ async function iterableStreamToProcessedUint8Array(
             contentLength,
             sendFeedback,
             increasePlaylistProgress,
+            checkCancellation,
           ),
         ),
       );
@@ -575,30 +612,29 @@ async function iterableStreamToProcessedUint8Array(
         increasePlaylistProgress(0.15 + processingProgress);
       });
 
-      const safeVideoNameWithExtension = `${safeVideoName}.${extension}`;
-      try {
-        await ffmpegInstance.run(
-          '-i',
-          safeVideoName,
-          ...presetFfmpegArgs,
-          ...getFFmpegMetadataArgs(metadata),
-          safeVideoNameWithExtension,
-        );
-      } finally {
-        ffmpegInstance.FS('unlink', safeVideoName);
-      }
+      checkCancellation();
+      await ffmpegInstance.run(
+        '-i',
+        safeVideoName,
+        ...presetFfmpegArgs,
+        ...getFFmpegMetadataArgs(metadata),
+        safeVideoNameWithExtension,
+      );
 
       sendFeedback(t('plugins.downloader.backend.feedback.saving'));
 
-      try {
-        return ffmpegInstance.FS('readFile', safeVideoNameWithExtension);
-      } finally {
-        ffmpegInstance.FS('unlink', safeVideoNameWithExtension);
+      checkCancellation();
+      return ffmpegInstance.FS('readFile', safeVideoNameWithExtension);
+    } finally {
+      ffmpegInstance.setProgress(() => {});
+      for (const file of [safeVideoName, safeVideoNameWithExtension]) {
+        try {
+          ffmpegInstance.FS('unlink', file);
+        } catch {
+          /* May not exist after a failed conversion. */
+        }
       }
-    } catch (error: unknown) {
-      sendError(error as Error, safeVideoName);
     }
-    return null;
   });
 }
 

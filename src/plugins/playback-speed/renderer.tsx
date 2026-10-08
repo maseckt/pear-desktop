@@ -6,6 +6,11 @@ import {
   isMusicOrVideoTrack,
   isPlayerMenu,
 } from '@/plugins/utils/renderer/check';
+import {
+  claimPlaybackRate,
+  releasePlaybackRate,
+  isPlaybackRateControlledByOther,
+} from '@/plugins/utils/renderer/playback-rate-owner';
 import { getSongMenu } from '@/providers/dom-elements';
 
 import { PlaybackSpeedSlider } from './components/slider';
@@ -14,6 +19,7 @@ const MIN_PLAYBACK_SPEED = 0.07;
 const MAX_PLAYBACK_SPEED = 16;
 
 const forcePlaybackRate = (e: Event) => {
+  if (isPlaybackRateControlledByOther('playback-speed')) return;
   if (e.target instanceof HTMLVideoElement) {
     const videoElement = e.target;
     if (videoElement.playbackRate !== speed()) {
@@ -30,6 +36,7 @@ const sliderContainer = document.createElement('div');
 export const onPlayerApiReady = () => {
   const observePopupContainer = () => {
     const updatePlayBackSpeed = () => {
+      claimPlaybackRate('playback-speed');
       const videoElement = document.querySelector<HTMLVideoElement>('video');
       if (videoElement) {
         videoElement.playbackRate = speed();
@@ -116,6 +123,7 @@ export const onPlayerApiReady = () => {
 };
 
 export const onUnload = () => {
+  releasePlaybackRate('playback-speed');
   const video = document.querySelector<HTMLVideoElement>('video');
   if (video) {
     video.removeEventListener('ratechange', forcePlaybackRate);

@@ -2,11 +2,13 @@ import { IconCheckCircle } from '@mdui/icons/check-circle.js';
 import { IconChevronLeft } from '@mdui/icons/chevron-left.js';
 import { IconChevronRight } from '@mdui/icons/chevron-right.js';
 import { IconError } from '@mdui/icons/error.js';
+import { IconSaveAlt } from '@mdui/icons/save-alt.js';
 import { IconStarBorder } from '@mdui/icons/star-border.js';
 import { IconStar } from '@mdui/icons/star.js';
 import { IconWarning } from '@mdui/icons/warning.js';
 import {
   createMemo,
+  createSignal,
   For,
   Index,
   Match,
@@ -15,10 +17,12 @@ import {
   type Setter,
 } from 'solid-js';
 
+import { t } from '@/i18n';
 import { LitElementWrapper } from '@/solit';
 
 import { providerNames, type ProviderName } from '../../providers';
 import { providerIndicator } from '../picker-presentation';
+import { config } from '../renderer';
 import {
   lyricsStore,
   rankedCandidates,
@@ -33,6 +37,25 @@ export const LyricsPicker = (props: {
   setStickRef: Setter<HTMLElement | null>;
 }) => {
   const ranked = createMemo(rankedCandidates);
+  const [saving, setSaving] = createSignal(false);
+  const [exportError, setExportError] = createSignal(false);
+  const exportLyrics = async () => {
+    const candidate = selection().selected?.candidate;
+    if (!candidate || saving()) return;
+    setSaving(true);
+    setExportError(false);
+    try {
+      await window.ipcRenderer.invoke('synced-lyrics:save', {
+        lyrics: candidate.result,
+        title: candidate.result.title,
+        artist: candidate.result.artists.join(', '),
+      });
+    } catch {
+      setExportError(true);
+    } finally {
+      setSaving(false);
+    }
+  };
   const availableProviders = createMemo(() =>
     providerNames.filter((provider) =>
       ranked().some(
@@ -73,6 +96,22 @@ export const LyricsPicker = (props: {
 
   return (
     <div class="lyrics-picker" ref={props.setStickRef}>
+      <Show when={config()?.showExport}>
+        <mdui-button-icon
+          aria-label={t('plugins.synced-lyrics.menu.export-label')}
+          disabled={saving() || !selection().selected}
+          onClick={exportLyrics}
+          title={t(
+            exportError()
+              ? 'plugins.synced-lyrics.menu.export-error'
+              : 'plugins.synced-lyrics.menu.export-label',
+          )}
+        >
+          <LitElementWrapper
+            elementClass={exportError() ? IconError : IconSaveAlt}
+          />
+        </mdui-button-icon>
+      </Show>
       <div class="lyrics-picker-left">
         <mdui-button-icon
           aria-label="Previous lyrics provider"

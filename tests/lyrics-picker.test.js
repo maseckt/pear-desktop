@@ -32,6 +32,7 @@ test.beforeAll(async ({}, testInfo) => {
         name: 'lyrics-picker-fixture',
         enforce: 'pre',
         resolveId(id, importer) {
+          if (id === 'virtual:i18n') return '\0fixture-i18n';
           id = modulePath(id);
           importer = importer && modulePath(importer);
           if (
@@ -51,6 +52,8 @@ test.beforeAll(async ({}, testInfo) => {
           return null;
         },
         load(id) {
+          if (id === '\0fixture-i18n')
+            return `export const availableLanguages=['en']; export const loadLanguageResource=async()=>({});`;
           id = modulePath(id);
           if (id === layoutEntry)
             return `
